@@ -5,7 +5,7 @@ services:
     cap_add:
       - NET_RAW
     environment:
-      - MTR_TARGET=${MTR_TARGET:-google.com}
+      - MTR_TARGET=${MTR_TARGET:-1.1.1.1}
       - MTR_INTERVAL=${MTR_INTERVAL:-30}
     volumes:
       - hopscope-data:/app/data
