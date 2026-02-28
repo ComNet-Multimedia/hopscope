@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Network Map – Visual Traceroute</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --green: #3fb950;
+      --green-dim: #238636;
+      --red: #f85149;
+      --red-dim: #da3633;
+      --yellow: #d4a72c;
+      --yellow-dim: #9e6a03;
+      --accent: #58a6ff;
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Outfit', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .layout {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .controls label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+
+    select option.reached-no {
+      color: var(--red);
+    }
+
+    select optgroup.reached-no {
+      color: var(--red);
+      font-weight: 600;
+    }
+
+    .range-buttons {
+      display: flex;
+      gap: 0.35rem;
+    }
+
+    .range-buttons button {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.8rem;
+    }
+
+    .range-buttons button.active {
+      background: var(--green);
+      color: var(--bg);
+    }
+
+    button {
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius);
+      font-family: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+
+    button:hover {
+      filter: brightness(1.1);
+    }
+
+    .meta {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .meta span {
+      margin-right: 1rem;
+    }
+
+    .timeline-section {
+      margin-bottom: 1rem;
+    }
+
+    .timeline-section .timeline-header {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .timeline-section label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .timeline-section select {
+      min-width: 220px;
+    }
+
+    .timeline-range-label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-left: 0.5rem;
+    }
+
+    .timeline-bar-wrap {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      height: 28px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .timeline-bar-wrap .segment {
+      flex: 1;
+      min-width: 2px;
+      transition: opacity 0.15s;
+    }
+
+    .timeline-bar-wrap .segment:hover {
+      opacity: 0.85;
+    }
+
+    .timeline-bar-wrap .segment.ok { background: var(--green); }
+    .timeline-bar-wrap .segment.warn { background: var(--yellow); }
+    .timeline-bar-wrap .segment.fail { background: var(--red); }
+    .timeline-bar-wrap .segment.nodata { background: var(--border); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      min-height: 400px;
+    }
+
+    .card.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    .card.error {
+      border-color: var(--red-dim);
+      color: var(--red);
+    }
+
+    #map {
+      width: 100%;
+      height: 320px;
+      overflow: visible;
+    }
+
+    .node {
+      cursor: pointer;
+      transition: filter 0.15s ease;
+    }
+
+    .node:hover {
+      filter: brightness(1.25);
+    }
+
+    .node circle {
+      stroke-width: 2;
+      stroke: var(--border);
+    }
+
+    .node.ok circle {
+      fill: var(--green);
+      stroke: var(--green-dim);
+    }
+
+    .node.warn circle {
+      fill: var(--yellow);
+      stroke: var(--yellow-dim);
+    }
+
+    .node.fail circle {
+      fill: var(--red);
+      stroke: var(--red-dim);
+    }
+
+    .link {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 2;
+      stroke-opacity: 0.6;
+    }
+
+    .link.ok {
+      stroke: var(--green);
+      stroke-opacity: 0.5;
+    }
+
+    .link.warn {
+      stroke: var(--yellow);
+      stroke-opacity: 0.5;
+    }
+
+    .link.fail {
+      stroke: var(--red);
+      stroke-opacity: 0.5;
+    }
+
+    .hop-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      fill: var(--text-muted);
+      text-anchor: middle;
+    }
+
+    .dest-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      fill: var(--text);
+      font-weight: 500;
+    }
+
+    #tooltip {
+      position: fixed;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      font-size: 0.8125rem;
+      font-family: 'JetBrains Mono', monospace;
+      pointer-events: none;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      max-width: 280px;
+      display: none;
+    }
+
+    #tooltip.visible {
+      display: block;
+    }
+
+    #tooltip .host {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.35rem;
+      word-break: break-all;
+    }
+
+    #tooltip .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1.5rem;
+      color: var(--text-muted);
+    }
+
+    #tooltip .loss {
+      color: var(--red);
+    }
+
+    #tooltip .loss.ok {
+      color: var(--green);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>Network Map</h1>
+      <div class="controls">
+        <label for="run-select">Run:</label>
+        <select id="run-select">
+          <option value="">Latest</option>
+        </select>
+        <span class="view-mode-label">Zakres zbiorczy:</span>
+        <div class="range-buttons" id="range-buttons">
+          <button type="button" data-hours="1">1h</button>
+          <button type="button" data-hours="6">6h</button>
+          <button type="button" data-hours="24">24h</button>
+          <button type="button" data-hours="48">48h</button>
+        </div>
+        <button type="button" id="refresh">Refresh</button>
+      </div>
+    </header>
+
+    <div class="meta" id="meta" style="display: none;">
+      <span id="meta-target"></span>
+      <span id="meta-time"></span>
+    </div>
+
+    <div class="timeline-section" id="timeline-section">
+      <div class="timeline-header">
+        <label for="timeline-hop">Host dla timeline:</label>
+        <select id="timeline-hop">
+          <option value="">— wybierz hop —</option>
+        </select>
+        <span class="timeline-range-label">Zakres:</span>
+        <div class="range-buttons" id="timeline-range-buttons">
+          <button type="button" data-hours="1">1h</button>
+          <button type="button" data-hours="6">6h</button>
+          <button type="button" data-hours="24">24h</button>
+          <button type="button" data-hours="48">48h</button>
+        </div>
+      </div>
+      <div class="timeline-bar-wrap" id="timeline-bar"></div>
+    </div>
+
+    <div class="card" id="card">
+      <div class="card empty" id="empty">Brak danych. Uruchom kolektor (backend/collector.py).</div>
+      <svg id="map" style="display: none;" viewBox="0 0 800 320" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </div>
+
+  <div id="tooltip">
+    <div class="host" id="tooltip-host"></div>
+    <div class="row"><span>Min</span><span id="tooltip-min"></span></div>
+    <div class="row"><span>Avg</span><span id="tooltip-avg"></span></div>
+    <div class="row"><span>Max</span><span id="tooltip-max"></span></div>
+    <div class="row"><span>Loss</span><span class="loss" id="tooltip-loss"></span></div>
+    <div class="row" id="tooltip-extra" style="display: none;"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
