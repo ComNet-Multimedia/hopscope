@@ -1,0 +1,28 @@
+services:
+  collector:
+    build: .
+    command: python backend/collector.py
+    cap_add:
+      - NET_RAW
+    environment:
+      - MTR_TARGET=${MTR_TARGET:-google.com}
+      - MTR_INTERVAL=${MTR_INTERVAL:-30}
+    volumes:
+      - hopscope-data:/app/data
+    restart: unless-stopped
+
+  server:
+    build: .
+    command: python backend/server.py
+    environment:
+      - PORT=5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - hopscope-data:/app/data
+    depends_on:
+      - collector
+    restart: unless-stopped
+
+volumes:
+  hopscope-data:
